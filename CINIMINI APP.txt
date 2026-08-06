@@ -1,0 +1,17 @@
+CINIMINI APP
+
+Google cloud 
+
+OAuth Client id (Android): 694231881204-7uig1e2orhq1qasp9db3j0mo3su4uolt.apps.googleusercontent.com
+
+
+OAuth Client id (Web) :694231881204-72utqfa49kofgs51u4joc13fehsuc8i0.apps.googleusercontent.com
+
+Client secret
+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
+Creation date
+10 July 2026, 23:31:11 GMT+5
+
+OAuth Client id(Desktop): Client secret
+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
+ 

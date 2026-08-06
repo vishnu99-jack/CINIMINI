@@ -1,0 +1,46 @@
+# -----------------------
+# Flutter
+# -----------------------
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.metadata
+
+# IDE
+.vscode/
+.idea/
+
+# Android
+**/android/.gradle/
+**/android/local.properties
+
+# iOS
+**/ios/Pods/
+
+# macOS
+**/macos/Pods/
+
+# Node
+**/node_modules/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Docker
+docker-volume/
+
+# Credentials
+*OAuth*.json
+*pass*.txt
+*.key
+*.pem
+
+# Windows
+Thumbs.db
+Desktop.ini

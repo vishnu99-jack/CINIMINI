@@ -1,0 +1,7 @@
+CINIMINI
+
+Peertube admin login
+
+username : root
+
+password: cinimini

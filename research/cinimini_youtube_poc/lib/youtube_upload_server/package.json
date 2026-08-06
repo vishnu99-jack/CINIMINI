@@ -1,0 +1,21 @@
+{
+  "name": "youtube_upload_server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "express": "^5.2.1",
+    "fs": "^0.0.1-security",
+    "googleapis": "^173.0.0",
+    "multer": "^2.2.0",
+    "open": "^11.0.0"
+  }
+}

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'features/navigation/pages/bottomNavigation_screen.dart';
 import 'package:media_kit/media_kit.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +17,7 @@ class CiniminiApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Cinimini',
-      home: HomeScreen(),
+      home: BottomNavigationScreen(),
     );
   }
 }

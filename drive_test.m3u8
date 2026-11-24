@@ -1,0 +1,17 @@
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:12
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:VOD
+
+#EXT-X-MAP:URI="https://drive.google.com/uc?export=download&id=17o39FjAgQWXSV7xoZ7vkJAfXeyFiBFA4",BYTERANGE="1336@0"
+
+#EXTINF:12.500000,
+#EXT-X-BYTERANGE:2572942@1336
+https://drive.google.com/uc?export=download&id=17o39FjAgQWXSV7xoZ7vkJAfXeyFiBFA4
+
+#EXTINF:6.417000,
+#EXT-X-BYTERANGE:784119@2574278
+https://drive.google.com/uc?export=download&id=17o39FjAgQWXSV7xoZ7vkJAfXeyFiBFA4
+
+#EXT-X-ENDLIST

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 import 'app_constants.dart';
 import 'app_radius.dart';
@@ -7,12 +8,16 @@ import 'app_text_styles.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData darkTheme = ThemeData(
+  static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
 
     brightness: Brightness.dark,
 
     scaffoldBackgroundColor: AppColors.background,
+
+    canvasColor: AppColors.background,
+
+    cardColor: AppColors.card,
 
     fontFamily: AppTextStyles.fontFamily,
 
@@ -38,33 +43,35 @@ class AppTheme {
 
       bodyLarge: AppTextStyles.bodyLarge,
       bodyMedium: AppTextStyles.bodyMedium,
+      bodySmall: AppTextStyles.bodySmall,
 
       labelLarge: AppTextStyles.buttonMedium,
-
-      bodySmall: AppTextStyles.bodySmall,
     ),
 
     // ==========================================================
     // AppBar
     // ==========================================================
-    appBarTheme:  AppBarTheme(
-      backgroundColor: AppColors.background,
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      iconTheme: IconThemeData(color: AppColors.textPrimary),
+      iconTheme: const IconThemeData(color: AppColors.textPrimary),
       titleTextStyle: AppTextStyles.screenTitle,
     ),
 
     // ==========================================================
-    // Card
+    // Card Theme
     // ==========================================================
-  cardTheme: CardThemeData(
+    cardTheme: CardThemeData(
       elevation: AppConstants.cardElevation,
       color: AppColors.card,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.large,
         side: BorderSide(
-          color: AppColors.border.withOpacity(AppConstants.cardBorderOpacity),
+          color: AppColors.border.withValues(
+            alpha: AppConstants.cardBorderOpacity,
+          ),
         ),
       ),
     ),
@@ -138,11 +145,13 @@ class AppTheme {
     ),
 
     // ==========================================================
-    // Bottom Navigation
+    // Navigation Bar
     // ==========================================================
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.surface,
-      indicatorColor: AppColors.primary.withOpacity(0.15),
+
+      indicatorColor: AppColors.primary.withValues(alpha: 0.18),
+
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const IconThemeData(color: AppColors.primary);
@@ -150,6 +159,7 @@ class AppTheme {
 
         return const IconThemeData(color: AppColors.textSecondary);
       }),
+
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return AppTextStyles.navigationLabel.copyWith(
@@ -157,7 +167,9 @@ class AppTheme {
           );
         }
 
-        return AppTextStyles.navigationLabel;
+        return AppTextStyles.navigationLabel.copyWith(
+          color: AppColors.textSecondary,
+        );
       }),
     ),
 
@@ -166,6 +178,7 @@ class AppTheme {
     // ==========================================================
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -185,5 +198,18 @@ class AppTheme {
     // Icon Theme
     // ==========================================================
     iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 24),
+
+    // ==========================================================
+    // Progress Indicator
+    // ==========================================================
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
+    ),
+
+    // ==========================================================
+    // Splash
+    // ==========================================================
+    splashColor: AppColors.primary.withValues(alpha: 0.10),
+    highlightColor: Colors.transparent,
   );
 }

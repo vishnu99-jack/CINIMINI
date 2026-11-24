@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-
+import '../../../core/navigation/navigation_service.dart';
+import '../../../core/routes/route_names.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
-
 import '../../../models/video_model.dart';
-import '../../../screens/video_player_screen.dart'; // Change this import if needed
+ // Change this import if needed
 
 class HeroBanner extends StatelessWidget {
   final VideoModel video;
@@ -58,11 +58,10 @@ class HeroBanner extends StatelessWidget {
               children: [
                 FilledButton.icon(
                   onPressed: () {
-                    Navigator.push(
+                    NavigationService.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => VideoScreen(video: video),
-                      ),
+                      RouteNames.videoPlayer,
+                      extra: video,
                     );
                   },
                   icon: const Icon(Icons.play_arrow),

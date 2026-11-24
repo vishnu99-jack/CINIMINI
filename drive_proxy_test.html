@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Cinimini Proxy HLS Test</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <style>
+        body {
+            background: #050507;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 30px;
+        }
+
+        video {
+            width: 900px;
+            max-width: 100%;
+            background: black;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Cinimini Proxy HLS Test</h1>
+
+    <video id="video" controls playsinline>
+    </video>
+
+    <script>
+
+        const video = document.getElementById("video");
+
+        const hlsUrl =
+            "http://localhost:8081/hls/master.m3u8";
+
+        if (Hls.isSupported()) {
+
+            const hls = new Hls();
+
+            hls.loadSource(hlsUrl);
+
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+
+                console.log("HLS manifest loaded.");
+
+            });
+
+            hls.on(Hls.Events.ERROR, function (
+                event,
+                data
+            ) {
+
+                console.error(
+                    "HLS ERROR:",
+                    data
+                );
+
+            });
+
+        } else if (
+            video.canPlayType(
+                "application/vnd.apple.mpegurl"
+            )
+        ) {
+
+            video.src = hlsUrl;
+
+        } else {
+
+            document.body.insertAdjacentHTML(
+                "beforeend",
+                "<p>HLS is not supported.</p>"
+            );
+
+        }
+
+    </script>
+
+</body>
+
+</html>

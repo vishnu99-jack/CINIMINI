@@ -1,0 +1,1059 @@
+# CINIMINI
+## Technical Memory Sheet – Frontend & Backend
+**Version:** November 2026  
+**Purpose:** Preserve the current architecture, implementation details, debugging history, and pending work.
+
+---
+
+# 1. PROJECT OVERVIEW
+
+CiniMini is a platform for young filmmakers to publish and discover short films, teasers, trailers, and other video content.
+
+### Current Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Flutter |
+| Navigation | GoRouter |
+| Backend | Node.js + Express |
+| Video platform | PeerTube |
+| Video streaming | HLS |
+| Main Flutter player | MediaKit |
+| Alternative player experiment | video_player |
+| Video thumbnails | CachedNetworkImage |
+| HTTP communication | http package |
+| Future storage integration | Google Drive |
+
+### Important Architectural Decision
+
+**PeerTube is our selected video processing and streaming engine.**
+
+Google Drive is intended for future persistent storage integration. The older Google Drive-based HLS implementation is an experiment and is not the selected user-facing playback architecture.
+
+Do not confuse these two systems.
+
+---
+
+# 2. FRONTEND ARCHITECTURE
+
+Project location: `mobile_app`
+
+## 2.1 Application Entry Point
+
+### `lib/main.dart`
+
+Responsibilities:
+- Initializes Flutter bindings.
+- Initializes MediaKit globally.
+- Starts the CiniMini application.
+- Loads the dark theme.
+- Uses GoRouter for application navigation.
+
+Important initialization:
+
+```dart
+WidgetsFlutterBinding.ensureInitialized();
+MediaKit.ensureInitialized();
+```
+
+MediaKit is initialized before the application starts.
+
+## 2.2 Navigation Architecture
+
+### `lib/core/router/app_router.dart`
+
+Uses GoRouter.
+
+Current routes include:
+
+- `/login`
+- `/register`
+- `/home`
+- `/discover`
+- `/create`
+- `/community`
+- `/profile`
+- `/video-player`
+- `/search`
+- `/notifications`
+- `/creator-profile`
+
+The video-player route receives a `VideoModel` through `state.extra` and opens:
+
+`VideoScreen(video: video)`
+
+The current player screen is located at:
+
+`lib/screens/video_player_screen.dart`
+
+### `lib/core/navigation/navigation_service.dart`
+
+Provides three navigation helpers:
+
+- `push()`
+- `replace()`
+- `pop()`
+
+These use GoRouter context extensions.
+
+### `lib/core/routes/route_names.dart`
+
+Stores route-name constants.
+
+**Important:** The current player is still in the legacy root-level `screens` directory. Do not move or restructure it without first checking its dependencies and routing.
+
+---
+
+# 3. HOME FEATURE
+
+Current folder structure:
+
+```text
+features/home/
+│
+├── controllers/
+│
+├── models/
+│
+├── pages/
+│   ├── home_page.dart
+│   ├── hls_scratch_test_page.dart
+│   ├── hls_scratch_test_page_mobile.dart
+│   ├── hls_scratch_test_page_web.dart
+│   └── hls_scratch_test_page_stub.dart
+│
+└── widgets/
+    ├── hero_banner.dart
+    ├── home_app_bar.dart
+    ├── horizontal_video_list.dart
+    ├── section_header.dart
+    └── video_card.dart
+```
+
+### Current widget responsibilities
+
+**HeroBanner**
+- Displays a featured video.
+- Uses CachedNetworkImageProvider.
+- Shows video title and channel.
+- Watch button navigates to the video-player route.
+- Details button is still a TODO.
+
+**HomeAppBar**
+- Displays CINI MINI branding.
+- Contains search, notification, and chat buttons.
+- Their callbacks are currently empty.
+
+**HorizontalVideoList**
+- Accepts a list of VideoModel objects.
+- Displays videos horizontally.
+- Uses the feature-based VideoCard.
+
+**SectionHeader**
+- Displays section titles.
+- Supports an optional See All action.
+
+**Feature VideoCard**
+- Uses CachedNetworkImage.
+- Displays thumbnail, title, and channel.
+- Navigates through NavigationService and GoRouter.
+
+### Legacy widget
+
+`lib/widgets/video_cart.dart`
+
+This is an older widget that uses:
+- Image.network
+- Navigator.push
+- MaterialPageRoute
+
+It is different from the newer feature-based VideoCard.
+
+The current Home horizontal list uses the newer widget.
+
+**Pending review:** `home_page.dart` has not yet been examined in detail. Its data-fetching lifecycle and repository usage still need verification.
+
+---
+
+# 4. VIDEO DATA ARCHITECTURE
+
+## 4.1 Video Model
+
+File:
+
+`lib/models/video_model.dart`
+
+Current fields:
+
+- id
+- uuid
+- title
+- thumbnail
+- channel
+
+The model maps PeerTube API response fields:
+
+| Flutter field | PeerTube response field |
+|---|---|
+| id | id |
+| uuid | uuid |
+| title | name |
+| thumbnail | thumbnailPath |
+| channel | channel.displayName |
+
+The thumbnail helper:
+- Returns an absolute URL unchanged.
+- Otherwise combines the thumbnail path with the configured PeerTube base URL.
+
+There is also an `hlsUrl` getter that constructs:
+
+`/static/streaming-playlists/hls/{uuid}/master.m3u8`
+
+However, this is not the current main playback method. The main player fetches the actual playlist URL dynamically through the video-details API.
+
+Do not assume this getter is correct or used without checking its references.
+
+## 4.2 Video Listing Service
+
+File:
+
+`lib/services/video_services.dart`
+
+Class: `VideoService`
+
+Responsibilities:
+- Sends GET request to PeerTube's videos endpoint.
+- Expects a JSON response containing a `data` list.
+- Converts each item into a VideoModel.
+- Throws an exception for unsuccessful responses.
+
+## 4.3 Video Repository
+
+File:
+
+`lib/repositories/video_details_repositories.dart`
+
+The supplied filename was plural, although some imports refer to a singular filename. Verify the actual path if necessary.
+
+`VideoRepository`:
+- Supports dependency injection of VideoService.
+- Provides `getVideos()`.
+
+The architecture separates data access from UI components.
+
+---
+
+# 5. VIDEO DETAILS AND PLAYBACK URL
+
+## 5.1 Video Details Service
+
+File:
+
+`lib/services/video_details_service.dart`
+
+Class:
+
+`VideoDetailsService`
+
+Method:
+
+`fetchPlayableVideo(String uuid)`
+
+Current workflow:
+
+1. Receives a PeerTube video UUID.
+2. Requests:
+
+   `/api/v1/videos/{uuid}`
+
+3. Checks whether `streamingPlaylists` exists.
+4. Checks whether the playlist list is empty.
+5. Extracts the first playlist's `playlistUrl`.
+6. Normalizes the URL using ApiConfig.
+7. Returns the playable HLS URL.
+
+Important: The playlist URL is obtained dynamically from PeerTube.
+
+It is not supposed to be hardcoded in the VideoModel.
+
+## 5.2 Video Details Repository
+
+`VideoDetailsRepository`
+
+Responsibilities:
+- Creates VideoDetailsService.
+- Exposes `getPlayableVideo(uuid)`.
+- Keeps the player screen separate from direct HTTP implementation.
+
+---
+
+# 6. CURRENT MAIN VIDEO PLAYER
+
+File:
+
+`lib/screens/video_player_screen.dart`
+
+### Current implementation
+
+Uses:
+
+- media_kit
+- media_kit_video
+- Player
+- VideoController
+- VideoDetailsRepository
+
+### Current playback sequence
+
+```text
+User taps a video
+       |
+       v
+GoRouter opens VideoScreen
+       |
+       v
+VideoScreen receives VideoModel
+       |
+       v
+Creates MediaKit Player
+       |
+       v
+Creates VideoController
+       |
+       v
+Fetches actual HLS URL
+       |
+       v
+PeerTube video details API
+       |
+       v
+Extracts streamingPlaylists[0].playlistUrl
+       |
+       v
+Normalizes PeerTube URL
+       |
+       v
+_player.open(Media(videoUrl), play: true)
+       |
+       v
+MediaKit handles HLS playback
+```
+
+### Current UI
+
+- Black Scaffold.
+- AppBar.
+- 16:9 video display.
+- Circular loading indicator.
+- Error display.
+- Retry action.
+- Player disposed in the widget's dispose method.
+
+### Current loading behaviour
+
+The loading indicator is cleared after `_player.open()` resolves.
+
+This does not necessarily mean that the first video frame has already been rendered.
+
+This is an observation, not a confirmed cause of the playback issue.
+
+---
+
+# 7. API CONFIGURATION
+
+## 7.1 ApiConfig
+
+File:
+
+`lib/config/api_config.dart`
+
+Supports compile-time configuration:
+
+- LAN_HOST
+- BACKEND_URL
+- PEERTUBE_URL
+
+Default backend URL:
+
+| Platform | Default |
+|---|---|
+| Web | localhost:3000 |
+| Android emulator | 10.0.2.2:3000 |
+| Other platforms | localhost:3000 |
+
+Default PeerTube URL:
+
+| Platform | Default |
+|---|---|
+| Web | localhost:9000 |
+| Android emulator | 10.0.2.2:9000 |
+| Other platforms | localhost:9000 |
+
+When LAN_HOST is supplied, Android uses that host for both backend and PeerTube.
+
+Previously used command:
+
+```bash
+flutter run --dart-define=LAN_HOST=192.168.197.175
+```
+
+That IP is historical and must not be assumed to be the current LAN IP.
+
+### URL normalization
+
+`normalizePeerTubeUrl()` replaces localhost and 127.0.0.1 hosts with the configured PeerTube host.
+
+It does not currently handle every possible hostname.
+
+## 7.2 Endpoints
+
+File:
+
+`lib/config/endpoints.dart`
+
+Important:
+
+```dart
+baseUrl => ApiConfig.baseUrl
+videos => "$baseUrl/api/v1/videos"
+```
+
+The current Flutter video listing and details requests go directly to PeerTube.
+
+They do not go through the Node backend.
+
+---
+
+# 8. FLUTTER DEPENDENCIES
+
+File: `pubspec.yaml`
+
+Direct dependencies include:
+
+```yaml
+http: ^1.2.2
+media_kit: ^1.1.11
+media_kit_video: ^1.2.5
+media_kit_libs_video: ^1.0.5
+cached_network_image: ^3.4.1
+go_router: ^17.4.0
+video_player: ^2.11.1
+```
+
+Resolved versions from the previously inspected pubspec.lock:
+
+| Package | Resolved version |
+|---|---|
+| media_kit | 1.2.6 |
+| media_kit_video | 1.3.1 |
+| media_kit_libs_video | 1.0.7 |
+| media_kit_libs_android_video | 1.3.8 |
+| video_player | 2.11.1 |
+| video_player_android | 2.9.5 |
+| video_player_web | 2.4.0 |
+| go_router | 17.4.0 |
+| http | 1.6.0 |
+| cached_network_image | 3.4.1 |
+
+Environment:
+- Flutter 3.38.9
+- Dart 3.10.8
+- Android SDK 36.1.0
+- JDK 21.0.8
+
+Do not randomly upgrade or downgrade playback packages during diagnosis.
+
+---
+
+# 9. ALTERNATIVE HLS SCRATCH TEST
+
+Files:
+
+```text
+features/home/pages/
+├── hls_scratch_test_page.dart
+├── hls_scratch_test_page_mobile.dart
+├── hls_scratch_test_page_web.dart
+└── hls_scratch_test_page_stub.dart
+```
+
+This is an experimental playback implementation.
+
+### Mobile version
+
+Uses:
+
+`video_player`
+
+URL pattern:
+
+`{backendUrl}/api/videos/{videoUUID}/hls/master.m3u8`
+
+It currently contains a hardcoded UUID:
+
+`e9713faa-0591-460e-a16f-d51063de1dd1`
+
+### Web version
+
+Uses:
+- dart:html
+- dart:js
+- dart:ui_web
+- HTML video element
+- JavaScript function `initializeHlsPlayer`
+
+### Important distinction
+
+The existing scratch test and the main player are not equivalent tests.
+
+| Main player | Scratch test |
+|---|---|
+| MediaKit | video_player |
+| Direct PeerTube | Node backend |
+| PeerTube HLS playlist | Old Drive-based HLS route |
+| Dynamic playlist URL | Hardcoded UUID and URL |
+
+Therefore, the current scratch page cannot establish whether video_player performs better than MediaKit for the same PeerTube stream.
+
+A valid comparison must use:
+- The same PeerTube video.
+- The same actual PeerTube HLS URL.
+- The same Android device.
+- Separate player implementations.
+
+The current MediaKit player must remain intact during this experiment.
+
+---
+
+# 10. BACKEND ARCHITECTURE
+
+Project structure includes:
+
+```text
+backend/
+│
+├── src/
+│   ├── config/
+│   │   └── peertubeConfig.js
+│   │
+│   ├── middleware/
+│   │   └── uploadMiddleware.js
+│   │
+│   ├── routes/
+│   │   ├── hlsRoutes.js
+│   │   ├── peertubeRoutes.js
+│   │   └── driveRoutes.js
+│   │
+│   ├── services/
+│   │   ├── hlsStreamingService.js
+│   │   ├── hlsProcessingService.js
+│   │   ├── hlsTransferService.js
+│   │   ├── peertubeService.js
+│   │   ├── peertubeStatusService.js
+│   │   └── videoStreamService.js
+│   │
+│   └── server.js
+│
+└── package.json
+```
+
+Some files were identified in the project tree but their complete source code has not yet been reviewed.
+
+---
+
+# 11. BACKEND SERVER
+
+File:
+
+`src/server.js`
+
+Current implementation:
+
+- Loads dotenv.
+- Creates Express application.
+- Enables CORS.
+- Enables JSON parsing.
+- Mounts Drive routes.
+- Mounts PeerTube routes.
+- Mounts HLS routes.
+- Exposes a root health-check endpoint.
+- Starts the server on PORT or 3000.
+- Binds to `0.0.0.0`.
+
+Route mounting:
+
+```js
+app.use("/api", driveRoutes);
+app.use("/api", peertubeRoutes);
+app.use("/api", hlsRoutes);
+```
+
+Health check:
+
+```text
+GET /
+```
+
+Returns a success response indicating that the CiniMini backend is running.
+
+### Important
+
+The current backend does not register a PeerTube playback proxy.
+
+Flutter currently contacts PeerTube directly for listing and video details.
+
+---
+
+# 12. PEERTUBE BACKEND SERVICE
+
+## 12.1 PeerTube Service
+
+File:
+
+`src/services/peertubeService.js`
+
+Responsibilities:
+
+- Obtains PeerTube OAuth client details.
+- Requests an access token.
+- Uploads videos to PeerTube.
+- Returns video ID, UUID, short UUID, watch URL, and raw response.
+
+Upload API:
+
+```text
+POST /api/v1/videos/upload
+```
+
+Authentication uses a Bearer token.
+
+The upload service:
+- Validates file path and title.
+- Reads the uploaded file.
+- Creates a Blob and FormData.
+- Sends the upload request to PeerTube.
+- Uses `waitTranscoding: false` in the upload route.
+
+Current implementation reads the entire file into memory before upload. This is a future scalability consideration, not a confirmed playback issue.
+
+## 12.2 PeerTube Configuration
+
+File:
+
+`src/config/peertubeConfig.js`
+
+Centralizes:
+
+- PEERTUBE_URL
+- PEERTUBE_API_URL
+- Username
+- Password
+- Channel ID
+
+Some other services read environment variables independently instead of importing this configuration.
+
+This is an architectural observation, not an immediate reason to refactor.
+
+## 12.3 PeerTube Status Service
+
+File:
+
+`src/services/peertubeStatusService.js`
+
+Responsibilities:
+
+- Obtains an OAuth access token.
+- Requests video details from PeerTube.
+- Checks processing state.
+- Checks HLS availability.
+- Extracts playlist and file metadata.
+
+It examines fields such as:
+- State ID and label.
+- Streaming playlists.
+- Playlist type.
+- Playlist URL.
+- File resolution.
+- Width and height.
+- Audio/video availability.
+- File size and FPS.
+- File URLs.
+
+Current completion logic checks:
+
+```text
+stateId === 1
+HLS available
+HLS files exist
+```
+
+This service supports the upload/transcoding/storage-transfer workflow.
+
+It is not the service used by the main Flutter playback screen.
+
+---
+
+# 13. BACKGROUND HLS PROCESSING
+
+File:
+
+`src/services/hlsProcessingService.js`
+
+Current workflow:
+
+```text
+Video uploaded to PeerTube
+        |
+        v
+Start background processing job
+        |
+        v
+Poll PeerTube status every 15 seconds
+        |
+        v
+Check processing completion
+        |
+        v
+Check HLS availability
+        |
+        v
+Transfer HLS assets to Google Drive
+        |
+        v
+Mark job COMPLETED or FAILED
+```
+
+Configuration:
+- Polling interval: 15 seconds.
+- Maximum attempts: 120.
+- Approximate maximum polling duration: 30 minutes.
+
+The service uses an in-memory `processingJobs` Map.
+
+Consequently, job status is not persistent across backend restarts.
+
+**Architectural distinction:** This is a PeerTube-to-Drive background transfer workflow. It is not the current Flutter playback pipeline.
+
+---
+
+# 14. BACKEND PEERTUBE ROUTES
+
+File:
+
+`src/routes/peertubeRoutes.js`
+
+### Upload endpoint
+
+```text
+POST /api/peertube/upload
+```
+
+Workflow:
+1. Receives video using multer.
+2. Extracts title, name, description, category, and privacy fields.
+3. Calls PeerTube upload service.
+4. Starts background HLS processing.
+5. Returns PeerTube upload information.
+6. Deletes the temporary uploaded file.
+
+### Processing status endpoint
+
+```text
+GET /api/peertube/processing-status/:videoUUID
+```
+
+Returns the in-memory processing job status.
+
+These routes currently handle uploading and background processing, not main video playback.
+
+---
+
+# 15. OLD GOOGLE DRIVE HLS IMPLEMENTATION
+
+This section must remain separate from the selected PeerTube playback architecture.
+
+## 15.1 HLS Routes
+
+File:
+
+`src/routes/hlsRoutes.js`
+
+Routes mounted under `/api`:
+
+```text
+GET /api/videos/:videoUUID/hls/master.m3u8
+
+GET /api/videos/:videoUUID/hls/media.m3u8
+
+GET /api/videos/:videoUUID/hls/video.mp4
+```
+
+The routes call `hlsStreamingService`.
+
+The MP4 endpoint:
+- Retrieves a Google Drive file ID.
+- Reads the Range header.
+- Requests file content from Drive.
+- Forwards streaming headers.
+- Streams the response to the client.
+
+## 15.2 HLS Streaming Service
+
+File:
+
+`src/services/hlsStreamingService.js`
+
+Current implementation:
+- Uses `driveService`.
+- Maintains a hardcoded video-assets Map.
+- Retrieves playlist content from Drive.
+- Reads playlist content into memory.
+- Validates the `#EXTM3U` header.
+- Rewrites playlist references.
+- Provides master and media playlists.
+
+One hardcoded UUID identified:
+
+`e9713faa-0591-460e-a16f-d51063de1dd1`
+
+This implementation represents an older Google Drive HLS experiment.
+
+It must not be treated as the current PeerTube playback engine.
+
+---
+
+# 16. CURRENT PLAYBACK ISSUE
+
+## 16.1 Device and Environment
+
+Latest confirmed primary test device:
+
+**Redmi M2006C3LI**
+
+Previously used:
+- Infinix X669C
+- Android 12 / API 31
+
+Current Redmi Android version has not been reconfirmed.
+
+Laptop:
+- Windows 11
+- VS Code
+
+Flutter build and installation have succeeded.
+
+## 16.2 Observed Symptoms
+
+| Video | Duration | Observed behaviour |
+|---|---:|---|
+| Waste shortfilm | ~1:59 | Starts around 26 seconds |
+| Inevitable | ~13 seconds | Starts around 6 seconds, later around 9 seconds |
+| Karma teaser | ~19 seconds | Plays briefly, then ends after around 1 second |
+
+Chrome on Android can play the PeerTube master HLS URL correctly.
+
+MediaKit has shown abnormal seeking, jumping, and early completion behaviour on the Redmi.
+
+## 16.3 Previous MediaKit Log Findings
+
+Log date: 15 November 2026.
+
+Observed:
+- HLS master and child playlists fetched.
+- Media fragments fetched.
+- MediaKit recognized a duration of approximately 18.917 seconds.
+- H.264 video, 848 × 480, 24 FPS.
+- AAC stereo audio, 44.1 kHz.
+- Initial software decoding.
+- Android surface became available later.
+- Video output changed from a null output to Android output.
+- Decoder and output were reinitialized.
+- Playback completed at the reported duration.
+
+No obvious HTTP or Range failure was established.
+
+Late surface creation and output reconfiguration are possible investigation leads, not proven root causes.
+
+## 16.4 Latest Android Log Findings
+
+Log date: 23 November 2026.
+
+Observed:
+- APK installation and application launch succeeded.
+- Impeller OpenGLES was active.
+- Significant skipped frames and main-thread delays occurred during launch.
+- PeerTube URLs were normalized to the LAN IP.
+- Android MediaCodec/ACodec initialized.
+- Video output surfaces were created.
+- AudioTrack started.
+- VideoOutput disposal and recreation occurred across video screens.
+- Some Android rendering and audio warnings appeared.
+
+The log does not establish a definitive cause of the abnormal playback.
+
+Do not assume that every warning is responsible.
+
+---
+
+# 17. CURRENT TECHNICAL HYPOTHESES
+
+These are investigation leads, not confirmed bugs.
+
+1. MediaKit/MPV playback behaviour on the Redmi device.
+2. Android video-surface initialization and reconfiguration.
+3. HLS playlist or fragment timing/metadata.
+4. Player state and loading lifecycle.
+5. Device-specific decoder behaviour.
+6. Main-thread performance and rendering delays.
+
+The fact that Chrome plays the stream successfully is useful evidence, but it does not prove that the Flutter player uses an identical decoding and rendering pipeline.
+
+No root cause has been confirmed.
+
+---
+
+# 18. DEVELOPMENT RULES FOR THE NEXT PHASE
+
+These decisions must be preserved.
+
+1. Do not replace the current MediaKit player without a controlled comparison.
+2. Do not delete the existing player implementation.
+3. Do not confuse the Google Drive HLS experiment with PeerTube playback.
+4. Do not hardcode a new HLS URL when PeerTube already provides the playlist URL dynamically.
+5. Do not redesign the frontend or backend unnecessarily.
+6. Do not change multiple variables in one playback experiment.
+7. Use the same video and same PeerTube playlist when comparing player packages.
+8. Keep the current architecture intact unless actual evidence requires a change.
+9. Distinguish confirmed facts from hypotheses.
+10. Review existing files before proposing code modifications.
+
+---
+
+# 19. PENDING ITEMS
+
+### Frontend
+
+- Review `features/home/pages/home_page.dart`.
+- Confirm the current Home data-fetching and repository lifecycle.
+- Review how the scratch test page is accessed.
+- Inspect AndroidManifest.xml when needed.
+- Later create an equivalent PeerTube HLS test using video_player without disturbing MediaKit.
+
+### Backend
+
+- Obtain the actual PeerTube video-details API response.
+- Inspect the `streamingPlaylists` array and nested `files`.
+- Verify the exact playlist URL returned by PeerTube.
+- Inspect the corresponding child playlist and fragment references if necessary.
+- Review the remaining Drive transfer files only when the storage workflow becomes relevant.
+
+### Playback investigation
+
+The next requested diagnostic item is the actual response from:
+
+```text
+GET http://localhost:9000/api/v1/videos/{videoUUID}
+```
+
+Preferably use the Karma teaser UUID, if it is still available.
+
+Important response fields:
+
+```json
+{
+  "uuid": "...",
+  "state": {},
+  "streamingPlaylists": [
+    {
+      "playlistUrl": "...",
+      "files": []
+    }
+  ]
+}
+```
+
+The complete response is preferable, with private credentials or sensitive information removed.
+
+---
+
+# 20. FINAL ARCHITECTURE REFERENCE
+
+## Current selected playback architecture
+
+```text
+                 FLUTTER APPLICATION
+                         |
+                         |
+                  Video Discovery
+                         |
+                         v
+                  PeerTube REST API
+                    Port 9000
+                         |
+                         v
+                  VideoModel
+                         |
+                         v
+                   Video Details
+                         |
+                         v
+                 PeerTube Details API
+                         |
+                         v
+                 Actual HLS playlist URL
+                         |
+                         v
+                    MediaKit
+                         |
+                         v
+                Android Video Playback
+```
+
+## Upload and processing architecture
+
+```text
+                  Flutter Upload
+                         |
+                         v
+                  Node.js Backend
+                    Port 3000
+                         |
+                         v
+                  PeerTube Upload
+                    Port 9000
+                         |
+                         v
+                PeerTube Transcoding
+                         |
+                         v
+                Background Status Polling
+                         |
+                         v
+              Future Drive Storage Transfer
+```
+
+## Older experimental architecture
+
+```text
+                Flutter Scratch Test
+                         |
+                         v
+                  Node.js Backend
+                         |
+                         v
+                 HLS Streaming Routes
+                         |
+                         v
+                 HLS Streaming Service
+                         |
+                         v
+                    Google Drive
+```
+
+This last architecture is the older Drive-based experiment, not our selected user-facing playback architecture.
+
+---
+
+**END OF MEMORY SHEET**
+
+This document represents the current implementation and investigation state as of November 2026. It should be updated as additional files are reviewed and as playback experiments produce verified results.

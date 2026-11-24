@@ -8,67 +8,132 @@ import '../repositories/video_details_repository.dart';
 class VideoScreen extends StatefulWidget {
   final VideoModel video;
 
-  const VideoScreen({super.key, required this.video});
+  const VideoScreen({
+    super.key,
+    required this.video,
+  });
 
   @override
   State<VideoScreen> createState() => _VideoScreenState();
 }
 
 class _VideoScreenState extends State<VideoScreen> {
-  late final Player player;
-  late final VideoController controller;
+  late final Player _player;
+  late final VideoController _controller;
 
-  final repository = VideoDetailsRepository();
+  final VideoDetailsRepository _repository =
+      VideoDetailsRepository();
 
-  bool loading = true;
-  String? error;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
 
-    player = Player();
-    controller = VideoController(player);
+    _player = Player();
 
-    loadVideo();
+    _controller = VideoController(_player);
+
+    _initializeVideo();
   }
 
-  Future<void> loadVideo() async {
+  Future<void> _initializeVideo() async {
     try {
-      final videoUrl = await repository.getPlayableVideo(widget.video.uuid);
-      print(videoUrl);
-      await player.open(Media(videoUrl));
+      final videoUrl =
+          await _repository.getPlayableVideo(widget.video.uuid);
+
+      await _player.open(
+        Media(videoUrl),
+        play: true,
+      );
+
+      if (!mounted) return;
 
       setState(() {
-        loading = false;
+        _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        error = e.toString();
+        _error = e.toString();
+        _isLoading = false;
       });
     }
   }
 
   @override
   void dispose() {
-    player.dispose();
+    _player.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.video.title)),
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(widget.video.title),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
       body: Center(
-        child: loading
-            ? const CircularProgressIndicator()
-            : error != null
-            ? Text(error!)
+        child: _error != null
+            ? _buildError()
             : AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Video(controller: controller),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Video(
+                      controller: _controller,
+                    ),
+
+                    if (_isLoading)
+                      const CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                  ],
+                ),
               ),
       ),
+    );
+  }
+
+  Widget _buildError() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.error_outline,
+          color: Colors.white,
+          size: 48,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Unable to play this video',
+          style: TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _error!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _error = null;
+              _isLoading = true;
+            });
+
+            _initializeVideo();
+          },
+          child: const Text('Retry'),
+        ),
+      ],
     );
   }
 }

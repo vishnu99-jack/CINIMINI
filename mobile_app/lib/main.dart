@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'features/navigation/pages/bottomNavigation_screen.dart';
 import 'package:media_kit/media_kit.dart';
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -14,10 +15,14 @@ class CiniminiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
+
       title: 'Cinimini',
-      home: BottomNavigationScreen(),
+
+      theme: AppTheme.darkTheme,
+
+      routerConfig: appRouter,
     );
   }
 }
